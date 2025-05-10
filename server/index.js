@@ -1,6 +1,9 @@
 const express = require('express');
 const cors = require('cors');
 const app=express();
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 //require jwt
 const jwt =require('jsonwebtoken')
 //cookie
@@ -9,6 +12,53 @@ require('dotenv').config()
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const stripe =require('stripe')(process.env.STRIPE_SECRET_KEY)
 const port=process.env.PORT || 5007;
+
+// Create uploads directory if it doesn't exist
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)){
+    fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+// Configure multer for file upload
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadsDir)
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
+    cb(null, uniqueSuffix + path.extname(file.originalname))
+  }
+});
+
+const fileFilter = (req, file, cb) => {
+  // Accept images only
+  if (!file.originalname.match(/\.(jpg|jpeg|png)$/)) {
+    return cb(new Error('Only image files are allowed!'), false);
+  }
+  cb(null, true);
+};
+
+const upload = multer({ 
+  storage: storage,
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  }
+});
+
+// Error handling middleware for multer
+const handleMulterError = (err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ message: 'File size too large. Maximum size is 5MB' });
+    }
+    return res.status(400).json({ message: err.message });
+  }
+  if (err) {
+    return res.status(400).json({ message: err.message });
+  }
+  next();
+};
 
 //middleware
 app.use(cors({
@@ -21,13 +71,11 @@ app.use(cors({
 }));
 app.use(cookieParser());
 app.use(express.json());
-
-
-
-
+app.use('/uploads', express.static(uploadsDir)); // Serve uploaded files
+app.use(handleMulterError); // Add multer error handling middleware
 
 //const uri = "mongodb+srv://<username>:<password>@cluster0.wv2vf1c.mongodb.net/?retryWrites=true&w=majority";
-const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.wv2vf1c.mongodb.net/?retryWrites=true&w=majority`;
+const uri = process.env.MONGODB_URI;
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 // console.log(uri);
 const client = new MongoClient(uri, {
@@ -78,13 +126,121 @@ const verifyToken = (req, res, next) => {
 
 async function run() {
     try {
+      // Connect to MongoDB
+      await client.connect();
+      console.log("Connected to MongoDB successfully!");
      
-    const PetCategoryCollection =client.db('PetAdoption').collection('PetCategory')
-    const petsCollection=client.db('PetAdoption').collection('pets')
-    const addAdoptCollection=client.db('PetAdoption').collection('addtoadopt')
-    const addDonationCampCollection=client.db('PetAdoption').collection('adddonationcamp')
-    const usersCollection=client.db('PetAdoption').collection('users')
-    const paymentCollection = client.db("PetAdoption").collection("payments");
+      // Use the new database name
+      const db = client.db('PetAdoptionDB');
+      
+      // Collections
+      const PetCategoryCollection = db.collection('PetCategory');
+      const petsCollection = db.collection('pets');
+      const addAdoptCollection = db.collection('addtoadopt');
+      const addDonationCampCollection = db.collection('adddonationcamp');
+      const usersCollection = db.collection('users');
+      const paymentCollection = db.collection('payments');
+
+      // Initialize default pets if the collection is empty
+      const petCount = await petsCollection.countDocuments();
+      if (petCount === 0) {
+        const defaultPets = [
+          {
+            name: "Buddy",
+            type: "Dog",
+            age: 3,
+            gender: "Male",
+            category: "Dog",
+            location: "New York",
+            longdesp: "Friendly and playful dog looking for a loving home.",
+            image: "https://i.ibb.co/m5WB59w/listdog1.jpg",
+            adopted: false,
+            addedDate: new Date().toISOString(),
+            userEmail: "admin@petadoption.com"
+          },
+          {
+            name: "Whiskers",
+            type: "Cat",
+            age: 2,
+            gender: "Female",
+            category: "Cat",
+            location: "Los Angeles",
+            longdesp: "Calm and affectionate cat that loves to cuddle.",
+            image: "https://i.ibb.co/y800wj4/listcat1.jpg",
+            adopted: false,
+            addedDate: new Date().toISOString(),
+            userEmail: "admin@petadoption.com"
+          },
+          {
+            name: "Charlie",
+            type: "Rabbit",
+            age: 1,
+            gender: "Male",
+            category: "Rabbit",
+            location: "Chicago",
+            longdesp: "Energetic rabbit that loves to hop around.",
+            image: "https://i.ibb.co/v3GrCF0/rabbit.jpg",
+            adopted: false,
+            addedDate: new Date().toISOString(),
+            userEmail: "admin@petadoption.com"
+          },
+          {
+            name: "Rocky",
+            type: "Dog",
+            age: 4,
+            gender: "Male",
+            category: "Dog",
+            location: "Houston",
+            longdesp: "Strong and loyal dog, great with families.",
+            image: "https://i.ibb.co/m5WB59w/listdog1.jpg",
+            adopted: false,
+            addedDate: new Date().toISOString(),
+            userEmail: "admin@petadoption.com"
+          },
+          {
+            name: "Mittens",
+            type: "Cat",
+            age: 2,
+            gender: "Female",
+            category: "Cat",
+            location: "Phoenix",
+            longdesp: "Playful cat that loves to chase toys.",
+            image: "https://i.ibb.co/y800wj4/listcat1.jpg",
+            adopted: false,
+            addedDate: new Date().toISOString(),
+            userEmail: "admin@petadoption.com"
+          }
+        ];
+
+        await petsCollection.insertMany(defaultPets);
+        console.log("Default pets added successfully!");
+      }
+
+      // Initialize default pet categories if empty
+      const categoryCount = await PetCategoryCollection.countDocuments();
+      if (categoryCount === 0) {
+        const defaultCategories = [
+          {
+            category: "Dog",
+            image: "https://i.ibb.co/m5WB59w/listdog1.jpg"
+          },
+          {
+            category: "Cat",
+            image: "https://i.ibb.co/y800wj4/listcat1.jpg"
+          },
+          {
+            category: "Bird",
+            image: "https://i.ibb.co/VMJx34v/bird.jpg"
+          },
+          {
+            category: "Rabbit",
+            image: "https://i.ibb.co/v3GrCF0/rabbit.jpg"
+          }
+        ];
+
+        await PetCategoryCollection.insertMany(defaultCategories);
+        console.log("Default categories added successfully!");
+      }
 
 //jwt login
 app.post('/jwt',async(req,res)=>{
@@ -99,8 +255,216 @@ app.post('/jwt',async(req,res)=>{
   .send({success:true});
  })
 
- //jwt logout
- app.post('/logout',async(req,res)=>{
+// Admin login
+app.post('/admin/login', async(req, res) => {
+  const { email, password } = req.body;
+  
+  // Default admin credentials
+  const adminEmail = "admin@petadoption.com";
+  const adminPassword = "Admin@123";
+  
+  if (email === adminEmail && password === adminPassword) {
+    const adminUser = { email, role: 'Admin' };
+    const token = jwt.sign(adminUser, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' });
+    
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+    })
+    .send({ success: true, role: 'Admin' });
+  } else {
+    res.status(401).send({ message: 'Invalid admin credentials' });
+  }
+});
+
+// Admin middleware
+const verifyAdmin = async (req, res, next) => {
+  const token = req?.cookies?.token;
+  if (!token) {
+    return res.status(401).send({ message: 'unauthorized access' });
+  }
+  
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+    if (err) {
+      return res.status(401).send({ message: 'unauthorized access' });
+    }
+    if (decoded.role !== 'Admin') {
+      return res.status(403).send({ message: 'forbidden access' });
+    }
+    req.user = decoded;
+    next();
+  });
+};
+
+// Admin dashboard routes
+app.get('/admin/dashboard', verifyAdmin, async(req, res) => {
+  try {
+    const pets = await petsCollection.find().toArray();
+    const users = await usersCollection.find().toArray();
+    const donations = await addDonationCampCollection.find().toArray();
+    const adoptions = await addAdoptCollection.find().toArray();
+    
+    res.send({
+      pets,
+      users,
+      donations,
+      adoptions
+    });
+  } catch (error) {
+    res.status(500).send({ message: 'Error fetching dashboard data' });
+  }
+});
+
+// Admin CRUD operations for pets
+app.post('/admin/pets', verifyAdmin, async(req, res) => {
+  try {
+    const newPet = req.body;
+    const result = await petsCollection.insertOne(newPet);
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: 'Error creating pet' });
+  }
+});
+
+app.put('/admin/pets/:id', verifyAdmin, async(req, res) => {
+  try {
+    const id = req.params.id;
+    const updatedPet = req.body;
+    const result = await petsCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: updatedPet }
+    );
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: 'Error updating pet' });
+  }
+});
+
+app.delete('/admin/pets/:id', verifyAdmin, async(req, res) => {
+  try {
+    const id = req.params.id;
+    const result = await petsCollection.deleteOne({ _id: new ObjectId(id) });
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: 'Error deleting pet' });
+  }
+});
+
+// Admin CRUD operations for users
+app.get('/admin/users', verifyAdmin, async(req, res) => {
+  try {
+    const users = await usersCollection.find().toArray();
+    res.send(users);
+  } catch (error) {
+    res.status(500).send({ message: 'Error fetching users' });
+  }
+});
+
+app.put('/admin/users/:id', verifyAdmin, async(req, res) => {
+  try {
+    const id = req.params.id;
+    const updatedUser = req.body;
+    const result = await usersCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: updatedUser }
+    );
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: 'Error updating user' });
+  }
+});
+
+app.delete('/admin/users/:id', verifyAdmin, async(req, res) => {
+  try {
+    const id = req.params.id;
+    const result = await usersCollection.deleteOne({ _id: new ObjectId(id) });
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: 'Error deleting user' });
+  }
+});
+
+// Admin CRUD operations for donations
+app.get('/admin/donations', verifyAdmin, async(req, res) => {
+  try {
+    const donations = await addDonationCampCollection.find().toArray();
+    res.send(donations);
+  } catch (error) {
+    res.status(500).send({ message: 'Error fetching donations' });
+  }
+});
+
+app.post('/admin/donations', verifyAdmin, async(req, res) => {
+  try {
+    const newDonation = req.body;
+    const result = await addDonationCampCollection.insertOne(newDonation);
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: 'Error creating donation campaign' });
+  }
+});
+
+app.put('/admin/donations/:id', verifyAdmin, async(req, res) => {
+  try {
+    const id = req.params.id;
+    const updatedDonation = req.body;
+    const result = await addDonationCampCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: updatedDonation }
+    );
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: 'Error updating donation campaign' });
+  }
+});
+
+app.delete('/admin/donations/:id', verifyAdmin, async(req, res) => {
+  try {
+    const id = req.params.id;
+    const result = await addDonationCampCollection.deleteOne({ _id: new ObjectId(id) });
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: 'Error deleting donation campaign' });
+  }
+});
+
+// Admin CRUD operations for adoptions
+app.get('/admin/adoptions', verifyAdmin, async(req, res) => {
+  try {
+    const adoptions = await addAdoptCollection.find().toArray();
+    res.send(adoptions);
+  } catch (error) {
+    res.status(500).send({ message: 'Error fetching adoptions' });
+  }
+});
+
+app.put('/admin/adoptions/:id', verifyAdmin, async(req, res) => {
+  try {
+    const id = req.params.id;
+    const updatedAdoption = req.body;
+    const result = await addAdoptCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: updatedAdoption }
+    );
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: 'Error updating adoption request' });
+  }
+});
+
+app.delete('/admin/adoptions/:id', verifyAdmin, async(req, res) => {
+  try {
+    const id = req.params.id;
+    const result = await addAdoptCollection.deleteOne({ _id: new ObjectId(id) });
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: 'Error deleting adoption request' });
+  }
+});
+
+//jwt logout
+app.post('/logout',async(req,res)=>{
   const user = req.body;
   // res.clearCookie('token',{maxAge:0,secure: process.env.NODE_ENV === 'production', 
   // sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',})
@@ -127,14 +491,30 @@ app.post('/jwt',async(req,res)=>{
     const result = await cursor.toArray();
     res.send(result);
 })
-app.post('/pets',async(req,res)=>{
-  const newPet=req.body;
-  console.log(newPet); 
+app.post('/pets', upload.single('image'), async (req, res) => {
+  try {
+    const petData = req.body;
+    
+    // Add image path if file was uploaded
+    if (req.file) {
+      // Create the full URL for the image
+      const imageUrl = `http://localhost:5007/uploads/${req.file.filename}`;
+      petData.image = imageUrl;
+    }
 
- const result=await petsCollection.insertOne(newPet);
- res.send(result)
- 
-})
+    // Add timestamp
+    petData.addedDate = new Date().toISOString();
+    
+    const result = await petsCollection.insertOne(petData);
+    
+    // Send back the complete pet data including the image URL
+    const insertedPet = await petsCollection.findOne({ _id: result.insertedId });
+    res.send(insertedPet);
+  } catch (error) {
+    console.error('Error adding pet:', error);
+    res.status(500).send({ message: 'Error adding pet: ' + error.message });
+  }
+});
 // Add this endpoint to fetch a pet by ID
 app.get('/pets/:id', async (req, res) => {
   const petId = req.params.id;

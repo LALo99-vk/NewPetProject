@@ -1,12 +1,12 @@
 import {
   createBrowserRouter,
-
 } from "react-router-dom";
-
 
 import Home from "../../pages/home/Home";
 import Login from "../../pages/login/Login";
 import Register from "../../pages/register/Register";
+import AdminLogin from "../../pages/AdminLogin";
+import AdminDashboard from "../../pages/AdminDashboard";
 // import ErrorPage from "../../pages/errorpage/ErrorPage";
 // import AddBook from "../pages/addbook/AddBook";
 // import AllBooks from "../pages/allbooks/AllBooks";
@@ -45,8 +45,6 @@ import UpdatePetDashboard from "../../pages/userDashboard/myaddedpet/updatePets/
 import UpdateDonationCampDashboard from "../../pages/userDashboard/updateDonationCampaign/UpdateDonationCampDashboard";
 import PrivateRoute from "./PrivateRoute";
 import AllPetsByCategory from "../../pages/allPetsByCategory/AllPetsByCategory";
-
-
 
 const router = createBrowserRouter([
   {
@@ -95,7 +93,7 @@ const router = createBrowserRouter([
       },
       {
         path: '/addpet',
-        element: <PrivateRoute><AddPetDashboard></AddPetDashboard></PrivateRoute>
+        element: <AddPet />
       },
       {
         path: '/adoptpet/:id',
@@ -119,13 +117,10 @@ const router = createBrowserRouter([
         element: <PrivateRoute><UpdateDonationCampDashboard></UpdateDonationCampDashboard></PrivateRoute>,
         loader: ({ params }) => fetch(`https://serversite-pet-adoption.vercel.app/adddonationcamp/${params.donationCampaignId}`)
       },
-
-
       {
         path: '/updatepet/:petId',
         element: <PrivateRoute><UpdatePetDashboard></UpdatePetDashboard></PrivateRoute>,
         loader: ({ params }) => fetch(`https://serversite-pet-adoption.vercel.app/pets/${params.petId}`)
-
       },
       {
         path: '/mydonationcamp',
@@ -139,18 +134,20 @@ const router = createBrowserRouter([
         path: '/allpetsadmin',
         element: <PrivateRoute><AllPetsAdminDashboard></AllPetsAdminDashboard></PrivateRoute>
       },
-
       {
         path: '/alldonationcampadmin',
         element: <PrivateRoute><AllDonationCampAdminDashboard></AllDonationCampAdminDashboard></PrivateRoute>
       },
-
-
-
-
-
     ]
   },
-
+  {
+    path: "/admin/login",
+    element: <AdminLogin />
+  },
+  {
+    path: "/admin/dashboard",
+    element: <AdminDashboard />
+  }
 ]);
+
 export default router;

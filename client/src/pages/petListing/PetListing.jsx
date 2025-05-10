@@ -1,15 +1,11 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 
-
 import { useEffect, useState } from "react";
 import PetListingCard from "./PetListingCard";
 import InfiniteScroll from "react-infinite-scroll-component";
 import Navbar from "../../shared/navbar/Navbar";
 
-
-
 const PetListing = () => {
- 
   const [pets, setPets] = useState([]);
   const [hasMore, setHasMore] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -43,7 +39,7 @@ const PetListing = () => {
     // Include category parameter only if selectedCategory is not empty
     const categoryParam = selectedCategory ? `&category=${selectedCategory}` : '';
   
-    fetch(`https://serversite-pet-adoption.vercel.app/pets?limit=${fetchLimit}${categoryParam}`)
+    fetch(`http://localhost:5007/pets?limit=${fetchLimit}${categoryParam}`)
       .then(response => response.json())
       .then(data => {
         // Sort the data by addedDate in descending order

@@ -1,364 +1,223 @@
-import { useFormik } from "formik";
-import { useContext } from "react";
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import Select from "react-select";
-import Swal from "sweetalert2";
-import { AuthContext } from "../../components/providers/AuthProvider";
-import { toast } from "react-toastify";
-import { addnewpet } from "../../components/schemas";
-import axios from "axios";
+import { useState, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import { AuthContext } from '../../components/providers/AuthProvider';
 
 const AddPet = () => {
-  const { user } = useContext(AuthContext);
-  const [image, setImage] = useState('');
-  const [url, setUrl] = useState('');
-  const [category, setCategory] = useState("");
   const navigate = useNavigate();
-  const saveImage = async () => {
-    try {
-      if (!image) {
-        return toast.error("Please upload an image");
-      }
-  
-      const formData = new FormData();
-      formData.append("image", image);
-      
-  
-      const response = await axios.post("https://api.imgbb.com/1/upload?key=055a245dd93198ad79e84b535cd64548", formData,{
-        headers:{
-          'Content-Type':'multipart/form-data'
-        }
-      });
-      console.log(response.data);
-      
-      if (response.data.status === 200) {
-        setUrl(response.data.data.url);
-        console.log(response.data.data.url);
-      } else {
-        toast.error("Image upload failed. Please try again.");
-      }
-    } catch (error) {
-      console.error("Error uploading image:", error);
+  const { user } = useContext(AuthContext);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [imageFile, setImageFile] = useState(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    type: '',
+    age: '',
+    gender: '',
+    category: '',
+    location: '',
+    longdesp: '',
+    adopted: false,
+    addedDate: new Date().toISOString(),
+    userEmail: user?.email || ''
+  });
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setImageFile(file);
     }
   };
-  // const saveImage = async () => {
-  //   const data = new FormData();
-  //   data.append("file", image);
-  //   data.append("upload_preset", "petadding");
-  //   data.append("cloud_name", "dtwz2gkbz");
 
-  //   try {
-  //     if (image === null) {
-  //       return toast.error("Please Upload image");
-  //     }
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
 
-  //     const res = await fetch('https://api.cloudinary.com/v1_1/dtwz2gkbz/image/upload', {
-  //       method: "POST",
-  //       body: data
-  //     });
+    if (!user) {
+      setError('Please login to add a pet');
+      setLoading(false);
+      return;
+    }
 
-  //     const cloudData = await res.json();
-  //     setUrl(cloudData.url);
-  //     console.log(cloudData.url);
-  //   } catch (error) {
-  //     console.error("Error uploading image:", error);
-  //   }
-  // }
-console.log('img',url);
-  const initialValues = {
-    name: "",
-    age: "",
-    category: "",
-    location: "",
-    shortdesp: "",
-    longdesp: "",
-    photo: "",
-  };
+    try {
+      // Create FormData object to handle file upload
+      const submitData = new FormData();
+      
+      // Append all form fields
+      Object.keys(formData).forEach(key => {
+        submitData.append(key, formData[key]);
+      });
 
-  const handleCategorySelectChange = (selectedOption) => {
-    setFieldValue("category", selectedOption);
-    setCategory(selectedOption);
-  };
-
-  const categoryOptions = [
-    { value: "Dog", label: "Dog" },
-    { value: "Cat", label: "Cat" },
-    { value: "Bird", label: "Bird" },
-    { value: "Rabbit", label: "Rabbit" },
-    { value: "Lion", label: "Lion" },
-  ];
-
-  const { values,errors,touched, handleBlur, handleChange, handleSubmit, setFieldValue } = useFormik({
-    initialValues: initialValues,
-    // validationSchema:addnewpet,
-    onSubmit: async () => {
-      try {
-        await saveImage(); // Wait for the image to be saved before proceeding
-        if (!url) {
-            return toast.error("Image not uploaded successfully. Please try again.");
-          }
-        // Rest of the code for creating and submitting the new pet
-        const currentDate = new Date();
-        const formattedDate = currentDate.toLocaleDateString("en-US");
-        const formattedTime = currentDate.toLocaleTimeString("en-US", {
-          hour: "numeric",
-          minute: "numeric",
-          second: "numeric",
-          hour12: true,
-        });
-  
-        const newPet = {
-          image: url || 'photo',
-          name: values.name,
-          age: values.age,
-          location: values.location,
-          category: values.category.value,
-         
-          shortdesp: values.shortdesp,
-          longdesp: values.longdesp,
-         
-          // reqId:_id;
-          addedDate: `${formattedDate} ${formattedTime}`,
-          // adopt_req: false,
-          adopted:false,
-          userEmail: user.email,
-        };
-        console.log('userEmailAddPet',user.email);
-  
-        const response = await fetch("https://serversite-pet-adoption.vercel.app/pets", {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-          },
-          body: JSON.stringify(newPet),
-        });
-  
-        console.log(newPet);
-  
-        const data = await response.json();
-        console.log(data);
-  
-        if (data.insertedId) {
-          Swal.fire({
-            title: "Success!",
-            text: "Pet Added Successfully",
-            icon: "success",
-            confirmButtonText: "Ok",
-          });
-          navigate('/');
-        }
-      } catch (error) {
-        console.error("Error adding pet:", error);
+      // Append image file if selected
+      if (imageFile) {
+        submitData.append('image', imageFile);
       }
-    },
-  });
-  
 
+      const response = await axios.post('http://localhost:5007/pets', submitData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        withCredentials: true
+      });
 
+      if (response.data.insertedId) {
+        alert('Pet added successfully!');
+        navigate('/petlisting');
+      }
+    } catch (error) {
+      console.error('Error adding pet:', error);
+      if (error.response?.data?.message) {
+        setError(error.response.data.message);
+      } else {
+        setError('Error adding pet. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  
-    return (
-        <div>
-      <div className="flex items-center justify-center p-12 w-full lg:w-10/12 mx-auto bg-base-400 mt-16 rounded-xl">
-        <div className="mx-auto w-full max-w-[550px] shadow-lg p-6 rounded-md">
-          <form onSubmit={handleSubmit}>
-            <div className='flex '>
-              <div className="w-full">
-                <label className="mb-3 block text-base font-medium text-[#07074D]">
-                  Upload Image
-                </label>
-                <div className="input flex justify-end mb-5">
-                  <p>Image file:</p>
-                  <label
-                    htmlFor="file-upload"
-                    className="custom-file-upload">
-                    {image
-                      ? <img
-                        className="w-10 lg:w-10 rounded-xl"
-                        src={image ? URL.createObjectURL(image) : ""}
-                        alt="img"
-                      />
-                      : <img
-                        src="https://cdn-icons-png.flaticon.com/128/1665/1665680.png"
-                        className="w-10"
-                      />}
-                  </label>
-                  <input
-                    id="file-upload"
-                    className='text-white'
-                    type="file"
-                    name="photo"
-                    value={values.photo}
-                    onBlur={handleBlur}
-                    
-                    onChange={(e) => setImage(e.target.files[0])}
-                  />
-                 
-                </div>
-                {errors.photo && touched.photo? (<p className=" text-error">{errors.photo}</p>):null}
+  return (
+    <div className="min-h-screen bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-2xl mx-auto">
+        <div className="bg-white p-8 rounded-lg shadow-md">
+          <h2 className="text-3xl font-bold mb-8 text-center text-[#D52B5C]">Add Pet for Adoption</h2>
+          
+          {error && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Pet Name</label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-[#D52B5C] focus:border-[#D52B5C]"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Pet Type</label>
+                <input
+                  type="text"
+                  value={formData.type}
+                  onChange={(e) => setFormData({...formData, type: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-[#D52B5C] focus:border-[#D52B5C]"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Age</label>
+                <input
+                  type="number"
+                  value={formData.age}
+                  onChange={(e) => setFormData({...formData, age: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-[#D52B5C] focus:border-[#D52B5C]"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Gender</label>
+                <select
+                  value={formData.gender}
+                  onChange={(e) => setFormData({...formData, gender: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-[#D52B5C] focus:border-[#D52B5C]"
+                  required
+                >
+                  <option value="">Select Gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                <select
+                  value={formData.category}
+                  onChange={(e) => setFormData({...formData, category: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-[#D52B5C] focus:border-[#D52B5C]"
+                  required
+                >
+                  <option value="">Select Category</option>
+                  <option value="Dog">Dog</option>
+                  <option value="Cat">Cat</option>
+                  <option value="Bird">Bird</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Location</label>
+                <input
+                  type="text"
+                  value={formData.location}
+                  onChange={(e) => setFormData({...formData, location: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-[#D52B5C] focus:border-[#D52B5C]"
+                  required
+                />
               </div>
             </div>
-              {/* <div className="mb-5">
-                <label htmlFor="photo" className="mb-3 block text-base font-medium text-[#07074D] ">
-                  Add the Pet Image
-                </label>
-                <input
-                  type="text"
-                  name="photo"
-                  id="photo"
-                  placeholder="Image URL"
-                  autoComplete="off"
-                  value={values.photo}
-                  onChange={handleChange}
-                  onBlur={handleBlur}
-                  min="0"
-                  className="w-full appearance-none rounded-md border border-[#e0e0e0] bg-white py-3 px-6 text-base font-medium text-[#6B7280] outline-none focus:border-[#6A64F1] focus:shadow-md"
-                />
-              </div> */}
-              <div htmlFor='name' className="mb-5">
-                <label className="mb-3 block text-base font-medium text-[#07074D]">
-                  Add the Pet Name
-                </label>
-                <input
-                  type="text"
-                  name="name"
-                  id="name"
-                  placeholder="Name"
-                  value={values.name}
-                  onChange={handleChange}
-                  onBlur={handleBlur}
-                  min="0"
-                  autoComplete="off"
-                  className="w-full appearance-none rounded-md border border-[#e0e0e0] bg-white py-3 px-6 text-base font-medium text-[#6B7280] outline-none focus:border-[#6A64F1] focus:shadow-md"
-                />
-                 {errors.name && touched.name? (<p className=" text-error">{errors.name}</p>):null}
-              </div>
-              <div className="mb-5">
-                <label htmlFor="pet_location" className="mb-3 block text-base font-medium text-[#07074D]">
-                  Add the Pet Location
-                </label>
-                <input
-                  type="text"
-                  name="location"
-                  id="location"
-                  placeholder="pet location"
-                  value={values.location}
-                  onChange={handleChange}
-                  onBlur={handleBlur}
-                  min="0"
-                  className="w-full appearance-none rounded-md border border-[#e0e0e0] bg-white py-3 px-6 text-base font-medium text-[#6B7280] outline-none focus:border-[#6A64F1] focus:shadow-md"
-                />
-                 {errors.location && touched.location? (<p className=" text-error">{errors.location}</p>):null}
-              </div>
-             
-              <div className="mb-5">
-        <label htmlFor="pet_category" className="mb-3 block text-base font-medium text-[#07074D]">
-          Pet Category
-        </label>
-        <Select
-          name="pet_category"
-          id="pet_category"
-          value={category}
-          required
-          options={categoryOptions}
-          onChange={handleCategorySelectChange}
-          className="w-full rounded-md border border-[#e0e0e0] bg-white text-base font-medium text-[#6B7280] focus:border-[#6A64F1] focus:shadow-md"
-        />
-         {errors.category && touched.category? (<p className=" text-error">{errors.category}</p>):null}
-      </div>
-              {/* <div className="mb-5">
-                <label htmlFor="pet_category" className="mb-3 block text-base font-medium text-[#07074D]">
-                  Pet Category
-                </label>
-                <select
-                  name="pet_category"
-                  id="pet_category"
-                  value={category_name}
-                  autoComplete="off"
-                  onChange={handleCategorySelectChange}
-                  className="w-full rounded-md border border-[#e0e0e0] bg-white py-3 px-6 text-base font-medium text-[#6B7280] outline-none focus:border-[#6A64F1] focus:shadow-md"
-                >
-                  <option value="">Select</option>
-                  <option value="Novel">Dog</option>
-                  <option value="History">Cat</option>
-                  <option value="Drama">Bird</option>
-                  <option value="Mystery">Rabbit</option>
-                  <option value="Mystery">Lion</option>
-                </select>
-              </div> */}
-              <div className="-mx-3 flex flex-wrap">
-                <div className="w-full px-3 sm:w-1/2">
-                  <div className="mb-5">
-                    <label htmlFor="age" className="mb-3 block text-base font-medium text-[#07074D]">
-                      Pet Age
-                    </label>
-                    <input
-                      type="number"
-                      name="age"
-                      id="age"
-                      autoComplete="off"
-                      placeholder="Pet Age"
-                      value={values.age}
-                  onChange={handleChange}
-                  onBlur={handleBlur}
-                      className="w-full rounded-md border border-[#e0e0e0] bg-white py-3 px-6 text-base font-medium text-[#6B7280] outline-none focus:border-[#6A64F1] focus:shadow-md"
-                    />
-                     {errors.age && touched.age? (<p className=" text-error">{errors.age}</p>):null}
-                  </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Pet Image</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
+                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-[#D52B5C] focus:border-[#D52B5C]"
+                required
+              />
+              {imageFile && (
+                <div className="mt-2">
+                  <img
+                    src={URL.createObjectURL(imageFile)}
+                    alt="Preview"
+                    className="h-32 w-32 object-cover rounded-md"
+                  />
                 </div>
-                
-              </div>
-              <div className="mb-5">
-                <label htmlFor="shortdesp" className="mb-3 block text-base font-medium text-[#07074D]">
-                  Add Short Description
-                </label>
-                <input
-                  type="text"
-                  name="shortdesp"
-                  id="shortdesp"
-                  placeholder="Short Description"
-                  value={values.shortdesp}
-                  onChange={handleChange}
-                  onBlur={handleBlur}
-                  min="0"
-                  autoComplete="off"
-                  className="w-full appearance-none rounded-md border border-[#e0e0e0] bg-white py-3 px-6 text-base font-medium text-[#6B7280] outline-none focus:border-[#6A64F1] focus:shadow-md"
-                />
-                 {errors.shortdesp && touched.shortdesp? (<p className=" text-error">{errors.shortdesp}</p>):null}
-              </div>
-              
-              <div className="mb-5">
-        <label htmlFor="longdesp" className="mb-3 block text-base font-medium text-[#07074D]">
-          Add Long Description
-        </label>
-        <textarea
-          name="longdesp"
-          id="longdesp"
-          placeholder="Long Description"
-          value={values.longdesp}
-          onChange={handleChange}
-          onBlur={handleBlur}
-          min="0"
-          autoComplete="off"
-          rows="4" // Specify the number of rows for the text area
-          className="w-full appearance-none rounded-md border border-[#e0e0e0] bg-white py-3 px-6 text-base font-medium text-[#6B7280] outline-none focus:border-[#6A64F1] focus:shadow-md resize-none" // Added resize-none to disable resizing
-        />
-         {errors.longdesp && touched.longdesp? (<p className=" text-error">{errors.longdesp}</p>):null}
-      </div>
-              <div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Detailed Description</label>
+              <textarea
+                value={formData.longdesp}
+                onChange={(e) => setFormData({...formData, longdesp: e.target.value})}
+                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-[#D52B5C] focus:border-[#D52B5C]"
+                rows="4"
+                required
+              />
+            </div>
+
+            <div className="flex justify-end space-x-4">
+              <button
+                type="button"
+                onClick={() => navigate('/petlisting')}
+                className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
               <button
                 type="submit"
-                className="hover:shadow-form rounded-md hover:bg-blue-400 py-3 px-8 text-center text-base font-semibold text-white outline-none w-full bg-[#ff0000]"
+                disabled={loading}
+                className="px-6 py-2 bg-[#D52B5C] text-white rounded-md hover:bg-[#b3244d] disabled:opacity-50"
               >
-                Add Pet
+                {loading ? 'Adding...' : 'Add Pet'}
               </button>
-              </div>
-            </form>
-          </div>
+            </div>
+          </form>
         </div>
-        </div>
-    );
+      </div>
+    </div>
+  );
 };
 
 export default AddPet;
